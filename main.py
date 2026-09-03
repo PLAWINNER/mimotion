@@ -33,7 +33,7 @@ def get_min_max_by_time(hour=None, minute=None):
         hour = time_bj.hour
     if minute is None:
         minute = time_bj.minute
-    # 21 点达到完整范围，供 21:23 的晚间任务使用。
+    # 21 点达到完整范围，供晚间任务使用。
     time_rate = min((hour * 60 + minute) / (21 * 60), 1)
     min_step = get_int_value_default(config, 'MIN_STEP', 18000)
     max_step = get_int_value_default(config, 'MAX_STEP', 25000)

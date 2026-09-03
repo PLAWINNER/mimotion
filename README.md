@@ -2,7 +2,7 @@
 
 > **本仓库的每日自动运行已配置。** 以下个人部署说明优先于后面的上游部署教程。
 >
-> - 计划时间：每天北京时间 **09:23、15:23、21:23**，GitHub 排队时可能延迟。晚间任务计划在 22:31 前预留 1 小时 8 分钟供检查。
+> - 计划时间：每天北京时间 **09:53、15:53、21:53**，GitHub 排队时可能延迟。晚间任务的计划启动时间比 22:31 提前 38 分钟。
 > - 打开 [Actions Secrets](https://github.com/PLAWINNER/mimotion/settings/secrets/actions)，点击 `CONFIG` 右侧的编辑按钮，只需把下面的 `USER`、`PWD` 填成自己的 Zepp Life 账号和密码。
 > - `AES_KEY` 已自动生成并保存。此部署使用 GitHub 内置授权，不需要创建 `PAT` 或 `CRON_HOURS`。
 > - 保存后可在 [刷步数工作流](https://github.com/PLAWINNER/mimotion/actions/workflows/run.yml) 点击 **Run workflow** 立即测试，也可以等待下一次定时运行。未填写账号时会安全跳过，不会尝试登录。
