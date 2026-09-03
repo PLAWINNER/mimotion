@@ -1,7 +1,6 @@
 import json
 import re
 import time
-import traceback
 import urllib
 import uuid
 from datetime import datetime
@@ -47,8 +46,8 @@ def login_access_token(user, password) -> (str | None, str | None):
         code = get_access_token(location)
         if code is None:
             return None, "获取accessToken失败 %s" % get_error_code(location)
-    except:
-        return None, f"获取accessToken异常:{traceback.format_exc()}"
+    except Exception as error:
+        return None, f"获取accessToken异常:{type(error).__name__}"
     return code, None
 
 
@@ -264,8 +263,8 @@ def get_user_device_id(app_token, userid) -> str | None:
                     dev_id = item.get("deviceId") or item.get("mac")
                     if dev_id:
                         return str(dev_id).replace(":", "").upper()
-    except Exception as e:
-        print(f"查询设备列表异常: {e}")
+    except Exception as error:
+        print(f"查询设备列表异常: {type(error).__name__}")
     return None
 
 

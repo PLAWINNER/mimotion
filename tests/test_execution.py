@@ -32,6 +32,21 @@ class ExecutionTests(unittest.TestCase):
             self.assertEqual(zepp_helper.grant_app_token("unused"), ("private-test-token", None))
         self.assertNotIn("private-test-token", output.getvalue())
 
+    def test_network_exception_does_not_expose_request_credentials(self):
+        output = io.StringIO()
+        error = zepp_helper.requests.ConnectionError(
+            "Request failed: https://example.invalid/?login_token=private-token&password=private-password"
+        )
+        with patch.object(main.MiMotionRunner, "login_and_post_step", side_effect=error), \
+                patch.multiple(main, create=True, min_step=8000, max_step=10000), \
+                contextlib.redirect_stdout(output):
+            result = main.run_single_account(1, 0, "test@example.invalid", "private-password")
+        self.assertFalse(result["success"])
+        self.assertEqual(result["msg"], "执行异常:ConnectionError")
+        for private in ("private-token", "private-password", "https://"):
+            self.assertNotIn(private, output.getvalue())
+            self.assertNotIn(private, result["msg"])
+
 
 if __name__ == "__main__":
     unittest.main()

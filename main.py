@@ -216,11 +216,12 @@ def run_single_account(total, idx, user_mi, passwd_mi):
         log_str += f'{exec_msg}\n'
         exec_result = {"user": user_mi, "success": success,
                        "msg": exec_msg}
-    except:
-        log_str += f"执行异常:{traceback.format_exc()}\n"
-        log_str += traceback.format_exc()
+    except Exception as error:
+        # 网络异常文本可能包含请求 URL 中的登录令牌，只记录异常类型。
+        error_message = f"执行异常:{type(error).__name__}"
+        log_str += error_message + "\n"
         exec_result = {"user": user_mi, "success": False,
-                       "msg": f"执行异常:{traceback.format_exc()}"}
+                       "msg": error_message}
     print(log_str)
     return exec_result
 

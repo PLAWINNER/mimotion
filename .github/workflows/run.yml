@@ -42,8 +42,17 @@ jobs:
           import os
           import runpy
           import sys
+          from urllib.parse import quote, quote_plus
 
           config = json.loads(os.environ.get("CONFIG") or "{}")
+          # CONFIG 是 JSON Secret；显式注册拆出的凭据及 URL 编码形式。
+          for field in ("USER", "PWD"):
+              for value in str(config.get(field) or "").split("#"):
+                  if value:
+                      for sensitive in {value, quote(value, safe=""), quote_plus(value, safe="")}:
+                          escaped = sensitive.replace("%", "%25").replace("\r", "%0D").replace("\n", "%0A")
+                          print("::add-mask::" + escaped, flush=True)
+
           if not config.get("USER") or not config.get("PWD"):
               message = "等待配置：请在 Settings → Secrets and variables → Actions 中编辑 CONFIG，填写 USER 和 PWD。此次未登录、未修改步数。"
               print(message)
