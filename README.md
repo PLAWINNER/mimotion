@@ -1,5 +1,27 @@
 # mimotion
 
+> **本仓库的每日自动运行已配置。** 以下个人部署说明优先于后面的上游部署教程。
+>
+> - 计划时间：每天北京时间 **10:23、16:23、22:23**，GitHub 排队时可能延迟。
+> - 打开 [Actions Secrets](https://github.com/PLAWINNER/mimotion/settings/secrets/actions)，点击 `CONFIG` 右侧的编辑按钮，只需把下面的 `USER`、`PWD` 填成自己的 Zepp Life 账号和密码。
+> - `AES_KEY` 已自动生成并保存。此部署使用 GitHub 内置授权，不需要创建 `PAT` 或 `CRON_HOURS`。
+> - 保存后可在 [刷步数工作流](https://github.com/PLAWINNER/mimotion/actions/workflows/run.yml) 点击 **Run workflow** 立即测试，也可以等待下一次定时运行。未填写账号时会安全跳过，不会尝试登录。
+> - 请先在 Zepp Life 中绑定微信或支付宝。新账号的设备绑定要求见下方上游说明。
+> - `MIN_STEP` / `MAX_STEP` 在北京时间 22 点达到完整范围，白天按时间比例降低。
+> - 只使用“刷步数”工作流；其余上游工作流已停用。更新上游代码后请保留本仓库的定时配置。
+
+```json
+{
+  "USER": "",
+  "PWD": "",
+  "MIN_STEP": "8000",
+  "MAX_STEP": "10000"
+}
+```
+
+---
+
+
 ![ 刷步数](https://github.com/TonyJiangWJ/mimotion/actions/workflows/run.yml/badge.svg)
 [![GitHub forks](https://img.shields.io/github/forks/TonyJiangWJ/mimotion?style=flat-square)](https://github.com/TonyJiangWJ/mimotion/forks)
 [![GitHub stars](https://img.shields.io/github/stars/TonyJiangWJ/mimotion?style=flat-square)](https://github.com/TonyJiangWJ/mimotion/stargazers)

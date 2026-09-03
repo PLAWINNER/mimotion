@@ -2,40 +2,71 @@ name: 刷步数
 
 on:
   schedule:
-    - cron: '11 10,12 * * *'
+    # UTC 02:23 / 08:23 / 14:23 = 北京时间 10:23 / 16:23 / 22:23
+    - cron: '23 2,8,14 * * *'
   workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: mimotion
+  cancel-in-progress: false
 
 jobs:
   build:
     runs-on: ubuntu-latest
-    timeout-minutes: 60
+    timeout-minutes: 10
     steps:
       - name: Checkout codes
         uses: actions/checkout@v5
         with:
-          token: ${{ secrets.PAT }} #此处PAT需要申请，教程详见：README
-      - name: Update system and install zsh
-        run: |
-          sudo -E apt-get -qq update
-          sudo -E apt-get install zsh -y
-          
+          ref: master
+
       - name: 初始化Python
         uses: actions/setup-python@v6
         with:
           python-version: "3.10"
-          
-      - name: 开始
-        env:
-            CONFIG: ${{ secrets.CONFIG }}
-            AES_KEY: ${{ secrets.AES_KEY }}
-        run: |
-          pip3 install -r requirements.txt
-          python3 main.py
 
-      - name: persist tokens
+      - name: 安装依赖
+        run: python -m pip install -r requirements.txt
+
+      - name: 开始
+        id: sync
+        env:
+          CONFIG: ${{ secrets.CONFIG }}
+          AES_KEY: ${{ secrets.AES_KEY }}
+        shell: python
         run: |
-          git config user.name github-actions
-          git config user.email github-actions@users.noreply.github.com
-          git add .
-          git commit -m "persist tokens trigger by ${{ github.event_name }}"
-          git push origin master
+          import json
+          import os
+          import runpy
+          import sys
+
+          config = json.loads(os.environ.get("CONFIG") or "{}")
+          if not config.get("USER") or not config.get("PWD"):
+              message = "等待配置：请在 Settings → Secrets and variables → Actions 中编辑 CONFIG，填写 USER 和 PWD。此次未登录、未修改步数。"
+              print(message)
+              with open(os.environ["GITHUB_STEP_SUMMARY"], "a", encoding="utf-8") as summary:
+                  summary.write(message + "\n")
+              sys.exit(0)
+
+          if len(os.environ.get("AES_KEY", "").encode("utf-8")) != 16:
+              sys.exit("AES_KEY 缺失或长度不为 16 字节，请检查仓库 Secret。")
+
+          with open(os.environ["GITHUB_OUTPUT"], "a", encoding="utf-8") as output:
+              output.write("configured=true\n")
+          sys.path.insert(0, os.getcwd())
+          runpy.run_path("main.py", run_name="__main__")
+
+      - name: 保存加密登录缓存
+        if: always() && steps.sync.outputs.configured == 'true'
+        run: |
+          git add -- encrypted_tokens.data
+          if git diff --cached --quiet; then
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git commit -m "Update encrypted login cache"
+          git push origin HEAD:master

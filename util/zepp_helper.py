@@ -138,7 +138,7 @@ def grant_login_tokens(access_token, device_id, is_phone=False) -> (str | None, 
         _app_token = resp["token_info"]["app_token"]
         _userid = resp["token_info"]["user_id"]
     except:
-        print("提取login_token失败：%s" % json.dumps(resp, ensure_ascii=False, indent=2))
+        print("提取login_token失败：接口返回的登录信息不完整")
     return _login_token, _app_token, _userid, None
 
 
@@ -150,7 +150,7 @@ def grant_app_token(login_token: str) -> (str | None, str | None):
     if resp.status_code != 200:
         return None, "请求异常：%d" % resp.status_code
     resp = resp.json()
-    print("grant_app_token: %s" % json.dumps(resp))
+    print("grant_app_token result: %s" % resp.get("result"))
 
     result = resp.get("result")
     if result != "ok":

@@ -254,6 +254,10 @@ def execute():
         summary = f"\n执行账号总数{total}，成功：{success_count}，失败：{total - success_count}"
         print(summary)
         push_util.push_results(push_results, summary, push_config)
+        if os.environ.get("GITHUB_STEP_SUMMARY"):
+            with open(os.environ["GITHUB_STEP_SUMMARY"], "a", encoding="utf-8") as report:
+                report.write(summary + "\n")
+        return success_count == total
     else:
         print(f"账号数长度[{len(user_list)}]和密码数长度[{len(passwd_list)}]不匹配，跳过执行")
         exit(1)
@@ -354,4 +358,4 @@ if __name__ == "__main__":
         print(f"多账号执行间隔：{sleep_seconds}")
         use_concurrent = False
     # endregion
-    execute()
+    exit(0 if execute() else 1)
