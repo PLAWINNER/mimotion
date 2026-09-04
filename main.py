@@ -27,17 +27,11 @@ def get_int_value_default(_config: dict, _key, default):
     return int(_config.get(_key))
 
 
-# 获取当前时间对应的最大和最小步数
-def get_min_max_by_time(hour=None, minute=None):
-    if hour is None:
-        hour = time_bj.hour
-    if minute is None:
-        minute = time_bj.minute
-    # 21 点达到完整范围，供晚间任务使用。
-    time_rate = min((hour * 60 + minute) / (21 * 60), 1)
+# 获取配置的随机步数范围
+def get_configured_step_range():
     min_step = get_int_value_default(config, 'MIN_STEP', 18000)
     max_step = get_int_value_default(config, 'MAX_STEP', 25000)
-    return int(time_rate * min_step), int(time_rate * max_step)
+    return min_step, max_step
 
 
 # 虚拟ip地址
@@ -292,8 +286,6 @@ def persist_user_tokens():
 
 
 if __name__ == "__main__":
-    # 北京时间
-    time_bj = get_beijing_time()
     encrypt_support = False
     user_tokens = dict()
     if os.environ.__contains__("AES_KEY") is True:
@@ -352,7 +344,7 @@ if __name__ == "__main__":
     if users is None or passwords is None:
         print("未正确配置账号密码，无法执行")
         exit(1)
-    min_step, max_step = get_min_max_by_time()
+    min_step, max_step = get_configured_step_range()
     use_concurrent = config.get('USE_CONCURRENT')
     if use_concurrent is not None and use_concurrent == 'True':
         use_concurrent = True
