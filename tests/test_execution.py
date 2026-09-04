@@ -47,6 +47,18 @@ class ExecutionTests(unittest.TestCase):
             self.assertNotIn(private, output.getvalue())
             self.assertNotIn(private, result["msg"])
 
+    def test_app_token_check_retries_a_temporary_connection_failure(self):
+        response = unittest.mock.Mock(status_code=200)
+        response.json.return_value = {"message": "success"}
+        with patch.object(
+            zepp_helper.requests,
+            "get",
+            side_effect=[zepp_helper.requests.ConnectionError("temporary"), response],
+        ) as request, patch.object(zepp_helper.time, "sleep") as sleep:
+            self.assertEqual(zepp_helper.check_app_token("unused"), (True, None))
+        self.assertEqual(request.call_count, 2)
+        sleep.assert_called_once_with(2)
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -11,6 +11,16 @@ import requests
 from util.aes_help import encrypt_data, HM_AES_KEY, HM_AES_IV
 
 
+def get_with_retry(url, attempts=3, timeout=15, **kwargs):
+    for attempt in range(attempts):
+        try:
+            return requests.get(url, timeout=timeout, **kwargs)
+        except (requests.ConnectionError, requests.Timeout):
+            if attempt == attempts - 1:
+                raise
+            time.sleep(2 * (attempt + 1))
+
+
 # 通过账号密码获取access_token和refresh_token 但是refresh_token不知道怎么使用
 def login_access_token(user, password) -> (str | None, str | None):
     headers = {
@@ -194,7 +204,7 @@ def check_app_token(app_token) -> (bool, str | None):
         "lang": "zh_CN",
         "clientid": "428135909242707968"
     }
-    response = requests.get(url, params=params, headers=headers)
+    response = get_with_retry(url, params=params, headers=headers)
     if response.status_code != 200:
         return False, "请求异常：%d" % response.status_code
     response = response.json()
