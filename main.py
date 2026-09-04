@@ -27,11 +27,16 @@ def get_int_value_default(_config: dict, _key, default):
     return int(_config.get(_key))
 
 
-# 获取配置的随机步数范围
-def get_configured_step_range():
+# 按北京时间逐步增加随机步数范围，21 点后使用完整配置范围
+def get_step_range_by_time(hour=None, minute=None):
+    if hour is None or minute is None:
+        now = get_beijing_time()
+        hour = now.hour
+        minute = now.minute
+    time_rate = min((hour * 60 + minute) / (21 * 60), 1)
     min_step = get_int_value_default(config, 'MIN_STEP', 18000)
     max_step = get_int_value_default(config, 'MAX_STEP', 25000)
-    return min_step, max_step
+    return int(time_rate * min_step), int(time_rate * max_step)
 
 
 # 虚拟ip地址
@@ -344,7 +349,7 @@ if __name__ == "__main__":
     if users is None or passwords is None:
         print("未正确配置账号密码，无法执行")
         exit(1)
-    min_step, max_step = get_configured_step_range()
+    min_step, max_step = get_step_range_by_time()
     use_concurrent = config.get('USE_CONCURRENT')
     if use_concurrent is not None and use_concurrent == 'True':
         use_concurrent = True
