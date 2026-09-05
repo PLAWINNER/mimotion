@@ -9,6 +9,22 @@ from util import zepp_helper
 
 
 class ExecutionTests(unittest.TestCase):
+    def test_external_dispatch_uses_scheduled_deduplication_and_time_window(self):
+        tokens = {"a@b.c": {"last_sync": {"slot": "2026-09-05T16:42"}}}
+        for event, scheduled in (("schedule", ""), ("workflow_dispatch", "true")):
+            with self.subTest(event=event), patch.object(main, "user_tokens", tokens, create=True), \
+                    patch.dict(main.os.environ, {"GITHUB_EVENT_NAME": event, "SYNC_SCHEDULED": scheduled}), \
+                    patch.object(main, "get_beijing_time") as now, \
+                    patch.object(main.MiMotionRunner, "login") as login:
+                for time in (datetime(2026, 9, 5, 17, 0), datetime(2026, 9, 6, 1, 0)):
+                    now.return_value = time
+                    runner = main.MiMotionRunner("a@b.c", "unused")
+                    self.assertTrue(runner.login_and_post_step()[1])
+                    self.assertTrue(runner.skipped)
+                login.assert_not_called()
+        with patch.dict(main.os.environ, {"GITHUB_EVENT_NAME": "workflow_dispatch", "SYNC_SCHEDULED": "false"}):
+            self.assertFalse(main.is_scheduled_run())
+
     def test_step_range_grows_until_the_evening_run(self):
         with patch.object(main, "config", {"MIN_STEP": "58000", "MAX_STEP": "66000"}, create=True):
             self.assertEqual(main.get_step_range_by_time(9, 53), (27296, 31061))

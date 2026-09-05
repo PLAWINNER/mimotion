@@ -24,6 +24,10 @@ except ImportError:
 DAILY_SLOTS = ((9, 0), (11, 34), (14, 8), (16, 42), (19, 16), (21, 50))
 
 
+def is_scheduled_run():
+    return os.environ.get("GITHUB_EVENT_NAME") == "schedule" or os.environ.get("SYNC_SCHEDULED") == "true"
+
+
 def get_due_slot(now):
     minute = now.hour * 60 + now.minute
     # 只补当前时段；跨午夜或晚于 22:30 的延迟任务不写入次日步数。
@@ -201,7 +205,7 @@ class MiMotionRunner:
         now = get_beijing_time()
         slot = get_due_slot(now)
         last_sync = user_tokens.get(self.user, {}).get("last_sync", {})
-        if os.environ.get("GITHUB_EVENT_NAME") == "schedule":
+        if is_scheduled_run():
             if slot is None:
                 self.skipped = True
                 return "跳过：不在北京时间 09:00～22:30 自动运行窗口", True
@@ -224,7 +228,7 @@ class MiMotionRunner:
         # 登录和设备查询重试可能跨过时段边界，按提交时的北京时间计算。
         now = get_beijing_time()
         slot = get_due_slot(now)
-        if os.environ.get("GITHUB_EVENT_NAME") == "schedule" and slot is None:
+        if is_scheduled_run() and slot is None:
             self.skipped = True
             return "跳过：登录后已超出自动运行窗口", True
         min_step, max_step = get_step_range_by_time(now.hour, now.minute)

@@ -13,6 +13,11 @@ on:
     - cron: '7,27,47 1-13 * * *'
     - cron: '7,27 14 * * *'
   workflow_dispatch:
+    inputs:
+      scheduled:
+        description: '按计划补跑：已成功的账号跳过，仅在自动运行窗口内提交'
+        type: boolean
+        default: false
 
 permissions:
   contents: write
@@ -45,6 +50,7 @@ jobs:
           CONFIG: ${{ secrets.CONFIG }}
           AES_KEY: ${{ secrets.AES_KEY }}
           TRIGGER_CRON: ${{ github.event.schedule }}
+          SYNC_SCHEDULED: ${{ inputs.scheduled }}
         shell: python
         run: |
           import json
@@ -56,6 +62,7 @@ jobs:
           from zoneinfo import ZoneInfo
 
           trigger = (f"触发方式：{os.environ.get('GITHUB_EVENT_NAME')}；"
+                     f"计划补跑：{os.environ.get('SYNC_SCHEDULED') or 'false'}；"
                      f"cron：{os.environ.get('TRIGGER_CRON') or '手动'}；"
                      f"实际北京时间：{datetime.now(ZoneInfo('Asia/Shanghai')):%Y-%m-%d %H:%M:%S}")
           print(trigger)

@@ -13,6 +13,10 @@
 > - `MIN_STEP` / `MAX_STEP` 是晚间完整范围；白天按北京时间线性缩小，21:00 后使用完整范围。
 > - 当天后续提交值不会低于程序已确认提交的步数。每个账号的成功时段和步数随登录缓存加密保存；全员跳过时不会推送或更新缓存。任务摘要显示实际触发时间、成功/失败/跳过数量及各账号结果。
 > - 只使用“刷步数”工作流；其余上游工作流已停用。更新上游代码后请保留本仓库的定时配置。
+>
+> **独立云定时入口已就绪（需先配置 cron-job.org）。** 运行 `python tools/cloud_timer_setup.py` 并打开输出的本地地址，按页面说明填写仅限本仓库的 GitHub Fine-grained token（Actions: Read and write）和 cron-job.org API key。助手会验证调用权限，创建六个定时任务与两个补跑检查任务，重复配置会复用同名任务。令牌不写入本地文件；GitHub 专用令牌会保存在 cron-job.org 的请求头中，Zepp 账号密码仍保留在 GitHub Secrets。配置完成后电脑无需保持开机。
+>
+> 外部服务调用工作流时需传 `{"ref":"master","inputs":{"scheduled":true}}`，这样会遵守自动运行窗口并跳过已成功的时段。GitHub 原定时保留作备用。云定时显示请求成功仅代表 GitHub 接受触发；最终步数提交结果请查看 Actions 的账号汇总。参考：[cron-job.org 官方 API](https://docs.cron-job.org/rest-api.html)、[GitHub workflow dispatch API](https://docs.github.com/en/rest/actions/workflows#create-a-workflow-dispatch-event)。
 
 ```json
 {
