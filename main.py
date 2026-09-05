@@ -21,6 +21,18 @@ try:
 except ImportError:
     pass
 
+DAILY_SLOTS = ((9, 0), (11, 34), (14, 8), (16, 42), (19, 16), (21, 50))
+
+
+def get_due_slot(now):
+    minute = now.hour * 60 + now.minute
+    # 只补当前时段；跨午夜或晚于 22:30 的延迟任务不写入次日步数。
+    if not 9 * 60 <= minute <= 22 * 60 + 30:
+        return None
+    hour, minute = max(slot for slot in DAILY_SLOTS if slot <= (now.hour, now.minute))
+    return f"{now:%Y-%m-%d}T{hour:02}:{minute:02}"
+
+
 # 获取默认值转int
 def get_int_value_default(_config: dict, _key, default):
     _config.setdefault(_key, default)
@@ -95,6 +107,7 @@ class MiMotionRunner:
         user = str(_user)
         password = str(_passwd)
         self.invalid = False
+        self.skipped = False
         self.log_str = ""
         if user == '' or password == '':
             self.error = "用户名或密码填写有误！"
@@ -165,7 +178,8 @@ class MiMotionRunner:
             self.log_str += f"登录提取的 access_token 无效：{msg}"
             return None
 
-        user_token_info = dict()
+        # 换发登录令牌时保留当天已完成时段，避免补跑重复提交。
+        user_token_info = dict(user_tokens.get(self.user, {}))
         user_token_info["access_token"] = access_token
         user_token_info["login_token"] = login_token
         user_token_info["app_token"] = app_token
@@ -181,16 +195,23 @@ class MiMotionRunner:
         return app_token
 
     # 主函数
-    def login_and_post_step(self, min_step, max_step):
+    def login_and_post_step(self):
         if self.invalid:
             return "账号或密码配置有误", False
+        now = get_beijing_time()
+        slot = get_due_slot(now)
+        last_sync = user_tokens.get(self.user, {}).get("last_sync", {})
+        if os.environ.get("GITHUB_EVENT_NAME") == "schedule":
+            if slot is None:
+                self.skipped = True
+                return "跳过：不在北京时间 09:00～22:30 自动运行窗口", True
+            if (last_sync.get("slot") or "") >= slot:
+                self.skipped = True
+                return f"跳过：时段 {slot} 已成功提交", True
         app_token = self.login()
         if app_token is None:
             return "登陆失败！", False
 
-        step = str(random.randint(min_step, max_step))
-        self.log_str += f"已设置为随机步数范围({min_step}~{max_step}) 随机值:{step}\n"
-        
         user_token_info = user_tokens.get(self.user, {})
         bound_device_id = user_token_info.get("bound_device_id")
         if not bound_device_id and self.user_id:
@@ -198,9 +219,24 @@ class MiMotionRunner:
             if bound_device_id:
                 user_token_info["bound_device_id"] = bound_device_id
                 user_tokens[self.user] = user_token_info
-                self.log_str += f"查找到已绑定设备ID: {bound_device_id}\n"
+                self.log_str += "已找到绑定设备\n"
+
+        # 登录和设备查询重试可能跨过时段边界，按提交时的北京时间计算。
+        now = get_beijing_time()
+        slot = get_due_slot(now)
+        if os.environ.get("GITHUB_EVENT_NAME") == "schedule" and slot is None:
+            self.skipped = True
+            return "跳过：登录后已超出自动运行窗口", True
+        min_step, max_step = get_step_range_by_time(now.hour, now.minute)
+        previous_step = last_sync.get("step", 0) if last_sync.get("date") == now.strftime("%Y-%m-%d") else 0
+        step = str(max(random.randint(min_step, max_step), previous_step))
+        self.log_str += f"已设置为随机步数范围({min_step}~{max_step}) 随机值:{step}\n"
 
         ok, msg = zeppHelper.post_fake_brand_data(step, app_token, self.user_id, device_id=bound_device_id)
+        if ok:
+            user_tokens.setdefault(self.user, {})["last_sync"] = {
+                "date": now.strftime("%Y-%m-%d"), "slot": slot, "step": int(step),
+            }
         return f"修改步数（{step}）[" + msg + "]", ok
 
 
@@ -209,14 +245,17 @@ def run_single_account(total, idx, user_mi, passwd_mi):
     if idx is not None:
         idx_info = f"[{idx + 1}/{total}]"
     log_str = f"[{format_now()}]\n{idx_info}账号：{desensitize_user_name(user_mi)}\n"
+    runner = None
     try:
         runner = MiMotionRunner(user_mi, passwd_mi)
-        exec_msg, success = runner.login_and_post_step(min_step, max_step)
+        exec_msg, success = runner.login_and_post_step()
         log_str += runner.log_str
         log_str += f'{exec_msg}\n'
         exec_result = {"user": user_mi, "success": success,
-                       "msg": exec_msg}
+                       "msg": exec_msg, "skipped": runner.skipped}
     except Exception as error:
+        if runner is not None:
+            log_str += runner.log_str
         # 网络异常文本可能包含请求 URL 中的登录令牌，只记录异常类型。
         error_message = f"执行异常:{type(error).__name__}"
         log_str += error_message + "\n"
@@ -235,8 +274,8 @@ def execute():
         if use_concurrent:
             import concurrent.futures
             with concurrent.futures.ThreadPoolExecutor() as executor:
-                exec_results = executor.map(lambda x: run_single_account(total, x[0], *x[1]),
-                                            enumerate(zip(user_list, passwd_list)))
+                exec_results = list(executor.map(lambda x: run_single_account(total, x[0], *x[1]),
+                                                 enumerate(zip(user_list, passwd_list))))
         else:
             for user_mi, passwd_mi in zip(user_list, passwd_list):
                 exec_results.append(run_single_account(total, idx, user_mi, passwd_mi))
@@ -247,18 +286,26 @@ def execute():
         if encrypt_support:
             persist_user_tokens()
         success_count = 0
+        skipped_count = 0
         push_results = []
         for result in exec_results:
-            push_results.append(result)
-            if result['success'] is True:
+            if result.get('skipped'):
+                skipped_count += 1
+            else:
+                push_results.append(result)
+            if result['success'] is True and not result.get('skipped'):
                 success_count += 1
-        summary = f"\n执行账号总数{total}，成功：{success_count}，失败：{total - success_count}"
+        failed_count = total - success_count - skipped_count
+        summary = f"\n执行账号总数{total}，成功：{success_count}，失败：{failed_count}，跳过：{skipped_count}"
         print(summary)
-        push_util.push_results(push_results, summary, push_config)
+        if push_results:
+            push_util.push_results(push_results, summary, push_config)
         if os.environ.get("GITHUB_STEP_SUMMARY"):
             with open(os.environ["GITHUB_STEP_SUMMARY"], "a", encoding="utf-8") as report:
                 report.write(summary + "\n")
-        return success_count == total
+                for idx, result in enumerate(exec_results, 1):
+                    report.write(f"- 账号 {idx}：{result['msg']}\n")
+        return failed_count == 0
     else:
         print(f"账号数长度[{len(user_list)}]和密码数长度[{len(passwd_list)}]不匹配，跳过执行")
         exit(1)
@@ -282,12 +329,13 @@ def prepare_user_tokens() -> dict:
 
 def persist_user_tokens():
     data_path = r"encrypted_tokens.data"
+    if os.path.exists(data_path) and prepare_user_tokens() == user_tokens:
+        return
     origin_str = json.dumps(user_tokens, ensure_ascii=False)
     cipher_data = encrypt_data(origin_str.encode("utf-8"), aes_key, None)
-    with open(data_path, 'wb') as f:
+    with open(data_path + '.tmp', 'wb') as f:
         f.write(cipher_data)
-        f.flush()
-        f.close()
+    os.replace(data_path + '.tmp', data_path)
 
 
 if __name__ == "__main__":
@@ -349,7 +397,6 @@ if __name__ == "__main__":
     if users is None or passwords is None:
         print("未正确配置账号密码，无法执行")
         exit(1)
-    min_step, max_step = get_step_range_by_time()
     use_concurrent = config.get('USE_CONCURRENT')
     if use_concurrent is not None and use_concurrent == 'True':
         use_concurrent = True

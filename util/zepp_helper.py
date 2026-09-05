@@ -11,14 +11,29 @@ import requests
 from util.aes_help import encrypt_data, HM_AES_KEY, HM_AES_IV
 
 
-def get_with_retry(url, attempts=3, timeout=15, **kwargs):
-    for attempt in range(attempts):
+def request_with_retry(method, url, **kwargs):
+    endpoint = urllib.parse.urlsplit(url)
+    for attempt in range(3):
         try:
-            return requests.get(url, timeout=timeout, **kwargs)
-        except (requests.ConnectionError, requests.Timeout):
-            if attempt == attempts - 1:
+            # 重试保持同一请求内容，提交步数时不会重新随机数值。
+            response = requests.request(method, url, timeout=(10, 20), **kwargs)
+            if response.status_code not in (500, 502, 503, 504):
+                return response
+            reason = f"HTTP_{response.status_code}"
+            print(f"接口失败 {method} {endpoint.hostname}{endpoint.path} 尝试:{attempt + 1}/3 原因:{reason}")
+            if attempt == 2:
+                return response
+            response.close()
+        except (requests.ConnectionError, requests.Timeout) as error:
+            # 不输出异常文本或 URL 查询参数，里面可能含密码和令牌。
+            cause = getattr(error.args[0], "reason", None) if error.args else None
+            reason = type(error).__name__
+            if cause is not None:
+                reason += "/" + type(cause).__name__
+            print(f"接口失败 {method} {endpoint.hostname}{endpoint.path} 尝试:{attempt + 1}/3 原因:{reason}")
+            if attempt == 2:
                 raise
-            time.sleep(2 * (attempt + 1))
+        time.sleep((5, 15)[attempt])
 
 
 # 通过账号密码获取access_token和refresh_token 但是refresh_token不知道怎么使用
@@ -48,7 +63,7 @@ def login_access_token(user, password) -> (str | None, str | None):
     cipher_data = encrypt_data(plaintext, HM_AES_KEY, HM_AES_IV)
 
     url1 = 'https://api-user.zepp.com/v2/registrations/tokens'
-    r1 = requests.post(url1, data=cipher_data, headers=headers, allow_redirects=False, timeout=5)
+    r1 = request_with_retry("POST", url1, data=cipher_data, headers=headers, allow_redirects=False)
     if r1.status_code != 303:
         return None, "登录异常，status: %d" % r1.status_code
     try:
@@ -136,7 +151,10 @@ def grant_login_tokens(access_token, device_id, is_phone=False) -> (str | None, 
             "source": "com.xiaomi.hm.health:6.14.0:50818",
             "third_name": "email",
         }
-    resp = requests.post(url, data=data, headers=headers).json()
+    resp = request_with_retry("POST", url, data=data, headers=headers)
+    if resp.status_code != 200:
+        return None, None, None, f"客户端登录请求失败：HTTP {resp.status_code}"
+    resp = resp.json()
     # print("请求客户端登录成功：%s" % json.dumps(resp, ensure_ascii=False, indent=2))  #
     _login_token, _userid, _app_token = None, None, None
     try:
@@ -155,7 +173,7 @@ def grant_login_tokens(access_token, device_id, is_phone=False) -> (str | None, 
 def grant_app_token(login_token: str) -> (str | None, str | None):
     url = f"https://account-cn.huami.com/v1/client/app_tokens?app_name=com.xiaomi.hm.health&dn=api-user.huami.com%2Capi-mifit.huami.com%2Capp-analytics.huami.com&login_token={login_token}"
     headers = {'User-Agent': 'MiFit/5.3.0 (iPhone; iOS 14.7.1; Scale/3.00)'}
-    resp = requests.get(url, headers=headers)
+    resp = request_with_retry("GET", url, headers=headers)
     if resp.status_code != 200:
         return None, "请求异常：%d" % resp.status_code
     resp = resp.json()
@@ -204,7 +222,7 @@ def check_app_token(app_token) -> (bool, str | None):
         "lang": "zh_CN",
         "clientid": "428135909242707968"
     }
-    response = get_with_retry(url, params=params, headers=headers)
+    response = request_with_retry("GET", url, params=params, headers=headers)
     if response.status_code != 200:
         return False, "请求异常：%d" % response.status_code
     response = response.json()
@@ -237,7 +255,7 @@ def renew_login_token(login_token) -> (str | None, str | None):
         "appplatform": "android_phone"
     }
 
-    resp = requests.get(url, params=params, headers=headers)
+    resp = request_with_retry("GET", url, params=params, headers=headers)
     if resp.status_code != 200:
         return None, "请求异常：%d" % resp.status_code
     resp = resp.json()
@@ -257,7 +275,7 @@ def get_user_device_id(app_token, userid) -> str | None:
         "User-Agent": "MiFit6.14.0 (M2007J1SC; Android 12; Density/2.75)"
     }
     try:
-        resp = requests.get(url, headers=headers, timeout=5).json()
+        resp = request_with_retry("GET", url, headers=headers).json()
         items = resp.get("items", [])
         if items:
             # 1. 优先匹配 deviceType == 0 (手环/手表)
@@ -303,7 +321,7 @@ def post_fake_brand_data(step, app_token, userid, device_id=None):
 
     data = f'userid={userid}&last_sync_data_time=1597306380&device_type=0&last_deviceid={target_dev_id}&data_json={data_json}'
 
-    response = requests.post(url, data=data, headers=head)
+    response = request_with_retry("POST", url, data=data, headers=head)
     if response.status_code != 200:
         return False, "请求修改步数异常：%d" % response.status_code
     response = response.json()

@@ -9,6 +9,9 @@ on:
     - cron: '42 8 * * *'
     - cron: '16 11 * * *'
     - cron: '50 13 * * *'
+    # 补跑检查：北京时间 09:07～22:27 每 20 分钟唤醒；已成功的时段自动跳过。
+    - cron: '7,27,47 1-13 * * *'
+    - cron: '7,27 14 * * *'
   workflow_dispatch:
 
 permissions:
@@ -41,6 +44,7 @@ jobs:
         env:
           CONFIG: ${{ secrets.CONFIG }}
           AES_KEY: ${{ secrets.AES_KEY }}
+          TRIGGER_CRON: ${{ github.event.schedule }}
         shell: python
         run: |
           import json
@@ -48,8 +52,22 @@ jobs:
           import runpy
           import sys
           from urllib.parse import quote, quote_plus
+          from datetime import datetime
+          from zoneinfo import ZoneInfo
 
-          config = json.loads(os.environ.get("CONFIG") or "{}")
+          trigger = (f"触发方式：{os.environ.get('GITHUB_EVENT_NAME')}；"
+                     f"cron：{os.environ.get('TRIGGER_CRON') or '手动'}；"
+                     f"实际北京时间：{datetime.now(ZoneInfo('Asia/Shanghai')):%Y-%m-%d %H:%M:%S}")
+          print(trigger)
+          with open(os.environ["GITHUB_STEP_SUMMARY"], "a", encoding="utf-8") as summary:
+              summary.write(trigger + "\n")
+
+          try:
+              config = json.loads(os.environ.get("CONFIG") or "{}")
+              if not isinstance(config, dict):
+                  raise ValueError()
+          except (ValueError, TypeError):
+              sys.exit("CONFIG 格式错误：需要 JSON 对象。")
           # CONFIG 是 JSON Secret；显式注册拆出的凭据及 URL 编码形式。
           for field in ("USER", "PWD"):
               for value in str(config.get(field) or "").split("#"):
@@ -63,7 +81,7 @@ jobs:
               print(message)
               with open(os.environ["GITHUB_STEP_SUMMARY"], "a", encoding="utf-8") as summary:
                   summary.write(message + "\n")
-              sys.exit(0)
+              sys.exit(1)
 
           if len(os.environ.get("AES_KEY", "").encode("utf-8")) != 16:
               sys.exit("AES_KEY 缺失或长度不为 16 字节，请检查仓库 Secret。")
