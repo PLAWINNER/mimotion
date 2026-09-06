@@ -10,7 +10,7 @@
 > - `AES_KEY` 已自动生成并保存。此部署使用 GitHub 内置授权，不需要创建 `PAT` 或 `CRON_HOURS`。
 > - 保存后可在 [刷步数工作流](https://github.com/PLAWINNER/mimotion/actions/workflows/run.yml) 点击 **Run workflow** 立即测试，也可以等待下一次定时运行。未填写账号或配置格式错误会明确报失败，不会显示为刷新成功。
 > - 请先在 Zepp Life 中绑定微信或支付宝。新账号的设备绑定要求见下方上游说明。
-> - `MIN_STEP` / `MAX_STEP` 是晚间完整范围；白天按北京时间线性缩小，21:00 后使用完整范围。
+> - `MIN_STEP` / `MAX_STEP` 是晚间完整范围；白天按北京时间线性缩小，21:00 后使用完整范围。当前通过 [Actions Variables](https://github.com/PLAWINNER/mimotion/settings/variables/actions) 设置为 **42000～48000**；这两个仓库变量优先于 `CONFIG` 中的同名值，留空时才使用 `CONFIG`。
 > - 当天后续提交值不会低于程序已确认提交的步数。每个账号的成功时段和步数随登录缓存加密保存；全员跳过时不会推送或更新缓存。任务摘要显示实际触发时间、成功/失败/跳过数量及各账号结果。
 > - 只使用“刷步数”工作流；其余上游工作流已停用。更新上游代码后请保留本仓库的定时配置。
 >
@@ -241,7 +241,7 @@
 
 7. 请注意，账号不是 [小米账号]，而是 [小米运动/ZeppLife] 的账号。
 
-8. CONFIG 的 `MIN_STEP` 和 `MAX_STEP` 是北京时间21点后的完整随机范围；白天会按当前时间线性缩小，多账号会分别随机。要修改范围，请更新 CONFIG。
+8. `MIN_STEP` 和 `MAX_STEP` 是北京时间21点后的完整随机范围；白天会按当前时间线性缩小，多账号会分别随机。本仓库修改范围请更新 Actions Variables 中的 `MIN_STEP` 和 `MAX_STEP`；未设置变量时使用 CONFIG 中的值。
 
 9. cron的执行根据github actions的资源进行排队，并不是百分百按指定的时间进行运行，请知悉。
 

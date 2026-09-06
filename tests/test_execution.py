@@ -26,10 +26,14 @@ class ExecutionTests(unittest.TestCase):
             self.assertFalse(main.is_scheduled_run())
 
     def test_step_range_grows_until_the_evening_run(self):
-        with patch.object(main, "config", {"MIN_STEP": "58000", "MAX_STEP": "66000"}, create=True):
+        with patch.object(main, "config", {"MIN_STEP": "58000", "MAX_STEP": "66000"}, create=True), \
+                patch.dict(main.os.environ, {"MIN_STEP": "", "MAX_STEP": ""}):
             self.assertEqual(main.get_step_range_by_time(9, 53), (27296, 31061))
             self.assertEqual(main.get_step_range_by_time(15, 53), (43868, 49919))
             self.assertEqual(main.get_step_range_by_time(21, 53), (58000, 66000))
+            with patch.dict(main.os.environ, {"MIN_STEP": "42000", "MAX_STEP": "48000"}):
+                self.assertEqual(main.get_step_range_by_time(9, 0), (18000, 20571))
+                self.assertEqual(main.get_step_range_by_time(21, 50), (42000, 48000))
 
     def test_failed_account_makes_the_run_unsuccessful(self):
         for successes in ((True, True), (True, False), (False, False)):

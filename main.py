@@ -50,8 +50,8 @@ def get_step_range_by_time(hour=None, minute=None):
         hour = now.hour
         minute = now.minute
     time_rate = min((hour * 60 + minute) / (21 * 60), 1)
-    min_step = get_int_value_default(config, 'MIN_STEP', 18000)
-    max_step = get_int_value_default(config, 'MAX_STEP', 25000)
+    min_step = int(os.environ.get('MIN_STEP') or config.get('MIN_STEP', 18000))
+    max_step = int(os.environ.get('MAX_STEP') or config.get('MAX_STEP', 25000))
     return int(time_rate * min_step), int(time_rate * max_step)
 
 

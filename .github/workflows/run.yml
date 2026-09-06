@@ -51,6 +51,8 @@ jobs:
           AES_KEY: ${{ secrets.AES_KEY }}
           TRIGGER_CRON: ${{ github.event.schedule }}
           SYNC_SCHEDULED: ${{ inputs.scheduled }}
+          MIN_STEP: ${{ vars.MIN_STEP }}
+          MAX_STEP: ${{ vars.MAX_STEP }}
         shell: python
         run: |
           import json
