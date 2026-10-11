@@ -1,0 +1,43 @@
+name: One-time VPS configuration migration
+on:
+  workflow_dispatch:
+    inputs:
+      public_certificate:
+        description: 'One-time certificate generated on the destination VPS'
+        type: string
+        required: true
+permissions:
+  contents: read
+jobs:
+  seal:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Encrypt configuration for the destination VPS
+        env:
+          CONFIG: ${{ secrets.CONFIG }}
+          AES_KEY: ${{ secrets.AES_KEY }}
+          MIN_STEP: ${{ vars.MIN_STEP }}
+          MAX_STEP: ${{ vars.MAX_STEP }}
+          RECIPIENT_PEM: ${{ inputs.public_certificate }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          umask 077
+          trap 'rm -f payload.json recipient.pem' EXIT
+          python3 - <<'PY'
+          import json, os
+          from pathlib import Path
+          config = json.loads(os.environ['CONFIG'])
+          assert config.get('USER') and config.get('PWD'), 'Missing account configuration'
+          assert len(os.environ['AES_KEY'].encode()) == 16, 'Invalid AES key length'
+          payload = {name: os.environ[name] for name in ('CONFIG', 'AES_KEY', 'MIN_STEP', 'MAX_STEP')}
+          Path('payload.json').write_text(json.dumps(payload), encoding='utf-8')
+          Path('recipient.pem').write_text(os.environ['RECIPIENT_PEM'], encoding='ascii')
+          PY
+          openssl cms -encrypt -binary -aes-256-gcm -in payload.json -recip recipient.pem -keyopt rsa_padding_mode:oaep -keyopt rsa_oaep_md:sha256 -outform DER -out config.cms
+      - uses: actions/upload-artifact@v4
+        with:
+          name: mimotion-vps-sealed-config
+          path: config.cms
+          retention-days: 1
