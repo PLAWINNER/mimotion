@@ -2,3 +2,7 @@
 __pycache__/
 .env
 /tools/cloud_timer_setup.state.json
+/.venv/
+/.run.lock
+/run.log
+/crontab.before-mimotion

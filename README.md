@@ -1,31 +1,17 @@
 # mimotion
 
-> **本仓库的每日自动运行已配置。** 以下个人部署说明优先于后面的上游部署教程。
+> **当前已迁移到 Ubuntu VPS，由系统 cron 自动运行。** 以下个人部署说明优先于后面的上游 GitHub 教程。
 >
-> - 计划时间：每天北京时间 **09:00、11:34、14:08、16:42、19:16、21:50**，GitHub 排队时可能延迟。晚间任务的计划启动时间比 22:31 提前 41 分钟。
-> - 增加 **09:07～22:27 每20分钟一次的补跑检查**：每个账号只补当前应执行但未成功的时段，已成功的账号跳过，不重复刷。若已经错过多个时段，只补当前时段。Actions 运行次数会多于6次，实际计划刷新仍为6个时段。
-> - 自动任务仅在北京时间 **09:00～22:30** 内提交，凌晨到达的延迟任务直接跳过；手动运行可立即刷新。GitHub 自身若持续不触发，补跑检查也可能延迟或缺失，不能保证准点或每日一定6次。
-> - 登录、令牌校验/刷新、设备查询和步数提交统一设置连接超时10秒、读取超时20秒；连接异常、超时和 HTTP 500/502/503/504 最多尝试3次，间隔5秒、15秒。HTTP 401/403/429 不立即重试，失败会显示在任务结果中。
-> - 打开 [Actions Secrets](https://github.com/PLAWINNER/mimotion/settings/secrets/actions)，点击 `CONFIG` 右侧的编辑按钮，只需把下面的 `USER`、`PWD` 填成自己的 Zepp Life 账号和密码。
-> - `AES_KEY` 已自动生成并保存。此部署使用 GitHub 内置授权，不需要创建 `PAT` 或 `CRON_HOURS`。
-> - 保存后可在 [刷步数工作流](https://github.com/PLAWINNER/mimotion/actions/workflows/run.yml) 点击 **Run workflow** 立即测试，也可以等待下一次定时运行。未填写账号或配置格式错误会明确报失败，不会显示为刷新成功。
-> - 请先在 Zepp Life 中绑定微信或支付宝。新账号的设备绑定要求见下方上游说明。
-> - `MIN_STEP` / `MAX_STEP` 是晚间完整范围；白天按北京时间线性缩小，21:00 后使用完整范围。当前通过 [Actions Variables](https://github.com/PLAWINNER/mimotion/settings/variables/actions) 设置为 **42000～48000**；这两个仓库变量优先于 `CONFIG` 中的同名值，留空时才使用 `CONFIG`。
-> - 当天后续提交值不会低于程序已确认提交的步数。每个账号的成功时段和步数随登录缓存加密保存；全员跳过时不会推送或更新缓存。任务摘要显示实际触发时间、成功/失败/跳过数量及各账号结果。
-> - 只使用“刷步数”工作流；其余上游工作流已停用。更新上游代码后请保留本仓库的定时配置。
->
-> **独立云定时入口已就绪（需先配置 cron-job.org）。** 运行 `python tools/cloud_timer_setup.py` 并打开输出的本地地址，按页面说明填写仅限本仓库的 GitHub Fine-grained token（Actions: Read and write）和 cron-job.org API key。助手会验证调用权限，创建六个定时任务与两个补跑检查任务，重复配置会复用同名任务。令牌不写入本地文件；GitHub 专用令牌会保存在 cron-job.org 的请求头中，Zepp 账号密码仍保留在 GitHub Secrets。配置完成后电脑无需保持开机。
->
-> 外部服务调用工作流时需传 `{"ref":"master","inputs":{"scheduled":true}}`，这样会遵守自动运行窗口并跳过已成功的时段。GitHub 原定时保留作备用。云定时显示请求成功仅代表 GitHub 接受触发；最终步数提交结果请查看 Actions 的账号汇总。参考：[cron-job.org 官方 API](https://docs.cron-job.org/rest-api.html)、[GitHub workflow dispatch API](https://docs.github.com/en/rest/actions/workflows#create-a-workflow-dispatch-event)。
-
-```json
-{
-  "USER": "",
-  "PWD": "",
-  "MIN_STEP": "8000",
-  "MAX_STEP": "10000"
-}
-```
+> - 每天北京时间 **09:00、11:34、14:08、16:42、19:16、21:50** 执行；**09:07～22:27 每20分钟**检查补跑。每个账号已成功的时段自动跳过，只补当前时段。
+> - 完整步数范围 **42000～48000**；白天按北京时间线性缩小，21:00 后使用完整范围。同一天不会低于程序已确认提交的步数。
+> - 自动提交窗口为 **09:00～22:30**。连接异常、超时及 HTTP 500/502/503/504 最多尝试3次，间隔5秒、15秒；HTTP 401/403/429 不立即重试。
+> - 程序目录为 `~/mimotion`，使用 `.venv` 中的 Python。`deploy/run.sh` 负责防重叠锁、10分钟超时和自动调度模式。
+> - 账号、密码、AES 密钥以及范围保存在 VPS 的 `.env`，文件权限600。加密登录缓存和成功时段保存在 `encrypted_tokens.data`，不会自动推送到 GitHub。
+> - 修改账号或范围时，在 VPS 上运行 `nano ~/mimotion/.env`，修改后保存即可。多个账号及对应密码分别用 `#` 分隔，数量和顺序必须一致。`.env` 中的 `MIN_STEP` / `MAX_STEP` 优先于 `CONFIG` 内同名字段。
+> - 查看日志：`tail -n 80 ~/mimotion/run.log`；查看定时：`crontab -l`；立即检查当前时段：`~/mimotion/deploy/run.sh`。已成功或不在自动窗口内会跳过。
+> - VPS 系统时区为 **UTC**，六个主任务的 cron 时间为 **01:00、03:34、06:08、08:42、11:16、13:50**；补跑为 `7,27,47 1-13 * * *` 和 `7,27 14 * * *`。如修改服务器时区，必须同步调整 cron。
+> - 系统 cron 已启用开机启动。电脑可以关机，VPS 需保持运行及联网。关机错过的任务会在恢复后的下一次检查补当前时段，运行窗口外不会补交。
+> - GitHub 旧工作流已停用，运行不再依赖 GitHub Actions 或云定时服务。下方上游教程仅供其他部署方式参考。
 
 ---
 
